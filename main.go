@@ -7,7 +7,7 @@ YNIT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-	
+
 YNIT is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -32,13 +32,13 @@ import (
 
 var debug bool
 
-func d(fmt string, vars... interface{}) {
+func d(fmt string, vars ...interface{}) {
 	if debug {
 		log.Printf(fmt, vars...)
 	}
 }
 
-func dp(vars... interface{}) {
+func dp(vars ...interface{}) {
 	if debug {
 		log.Print(vars...)
 	}
@@ -64,7 +64,7 @@ func main() {
 		}
 		return err
 	})
-	
+
 	data.normalize()
 	data.start()
 	dp("Service started")
