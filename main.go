@@ -30,8 +30,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const CONFDIR = "/etc/ynit/"
-
 var debug bool
 
 func d(fmt string, vars... interface{}) {
