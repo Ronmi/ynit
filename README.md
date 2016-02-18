@@ -2,6 +2,8 @@
 
 YNIT is `init` process supports sysv-like format scripts. I aims to handle PID 1 problems in docker.
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/Ronmi/ynit)](https://goreportcard.com/report/github.com/Ronmi/ynit)
+
 #### PID 1 problem?
 
 See [phusion's awesome blog post](https://blog.phusion.nl/2015/01/20/docker-and-the-pid-1-zombie-reaping-problem/) for detail.
