@@ -142,7 +142,7 @@ func (s *services) normalize() {
 }
 
 func (s *services) filterDeps(data map[string]bool) {
-	for srv, _ := range data {
+	for srv := range data {
 		if _, ok := s.srvs[srv]; !ok {
 			data[srv] = false
 		}
@@ -155,7 +155,7 @@ func (s *services) mergeStart(srv *service) {
 			continue
 		}
 		for _, dest := range s.srvs[dep] {
-			for provide, _ := range srv.provides {
+			for provide := range srv.provides {
 				dest.startAfter[provide] = true
 			}
 		}
@@ -168,7 +168,7 @@ func (s *services) mergeStop(srv *service) {
 			continue
 		}
 		for _, dest := range s.srvs[dep] {
-			for provide, _ := range srv.provides {
+			for provide := range srv.provides {
 				dest.stopAfter[provide] = true
 			}
 		}
