@@ -27,7 +27,7 @@ import (
 	"sync"
 )
 
-// procfs root
+// PROC denotes procfs root
 const PROC = "/proc"
 
 type childMgr struct {
