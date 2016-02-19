@@ -40,6 +40,7 @@ func runner(srv *service, arg string, notify chan string) {
 	done := make(chan int)
 
 	go func(notify chan string, done chan int) {
+		// service runner
 		flags := map[string]bool{}
 		if len(deps) > 0 {
 			d("Script %s is waiting for deps %v", srv.script, deps)
@@ -70,6 +71,7 @@ func runner(srv *service, arg string, notify chan string) {
 
 		for range notify {
 		}
+		d("runner for %s stopped", script)
 	}(notify, done)
 
 	<-done

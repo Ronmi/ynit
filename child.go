@@ -31,15 +31,13 @@ import (
 const PROC = "/proc"
 
 type childMgr struct {
-	monitoring map[int]bool
-	*sync.Mutex
+	monitoring *SyncIntMap
 	*sync.WaitGroup
 }
 
 func newMgr() *childMgr {
 	return &childMgr{
-		map[int]bool{},
-		&sync.Mutex{},
+		NewIntMap(),
 		&sync.WaitGroup{},
 	}
 }
@@ -68,7 +66,7 @@ func (m *childMgr) adopt() {
 			continue
 		}
 
-		if m.monitoring[pid] {
+		if m.monitoring.Has(pid) {
 			// already monitoring
 			continue
 		}
@@ -78,11 +76,9 @@ func (m *childMgr) adopt() {
 			if err != nil {
 				continue
 			}
-			m.Lock()
-			m.monitoring[pid] = true
+			m.monitoring.Set(pid, true)
 			m.Add(1)
 			go m.reap(p, pid)
-			m.Unlock()
 			d("Monitoring child %d", pid)
 		}
 	}
@@ -90,10 +86,7 @@ func (m *childMgr) adopt() {
 
 // reap a child process
 func (m *childMgr) reap(p *os.Process, pid int) {
-	p.Wait()
-	m.Lock()
-	m.monitoring[pid] = false
-	m.Unlock()
+	m.monitoring.Set(pid, false)
 	m.Done()
 	d("Child process %d exited", pid)
 }

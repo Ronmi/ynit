@@ -188,9 +188,10 @@ func (s *services) run(arg string) {
 	wait := make(chan int)
 	done := make(chan int)
 	for _, srv := range s.data {
-		go func(chs map[string]chan string, srv *service) {
-			ch := make(chan string)
-			chs[srv.script] = ch
+		ch := make(chan string)
+		chs[srv.script] = ch
+		go func(chs map[string]chan string, srv *service, ch chan string) {
+			// service starter/stoper
 			runner(srv, arg, ch)
 			for range wait {
 			}
@@ -200,10 +201,15 @@ func (s *services) run(arg string) {
 				}
 			}
 			done <- 1
-		}(chs, srv)
+			d("(start|stop)er for %s stopped", srv.script)
+		}(chs, srv, ch)
 	}
 	close(wait)
 	for range s.data {
 		<-done
+	}
+
+	for _, ch := range chs {
+		close(ch)
 	}
 }
