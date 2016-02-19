@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"os"
 	"strings"
+	"sync"
 )
 
 func setProp(line, prop string, data map[string]bool) {
@@ -186,8 +187,9 @@ func (s *services) stop() {
 func (s *services) run(arg string) {
 	chs := make(map[string]chan string)
 	wait := make(chan int)
-	done := make(chan int)
+	done := &sync.WaitGroup{}
 	for _, srv := range s.data {
+		done.Add(1)
 		ch := make(chan string)
 		chs[srv.script] = ch
 		go func(chs map[string]chan string, srv *service, ch chan string) {
@@ -200,14 +202,12 @@ func (s *services) run(arg string) {
 					c <- dep
 				}
 			}
-			done <- 1
+			done.Done()
 			d("(start|stop)er for %s stopped", srv.script)
 		}(chs, srv, ch)
 	}
 	close(wait)
-	for range s.data {
-		<-done
-	}
+	done.Wait()
 
 	for _, ch := range chs {
 		close(ch)
