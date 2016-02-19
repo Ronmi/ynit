@@ -73,7 +73,7 @@ As you can see, it is almost compatible with the scripts in `/etc/init.d/`. In f
 
 ## How it works
 
-YNIT reads all scripts in `/etc/ynit/`, parse for properties (if exist), and executes them in order. To be compatible with scripts in `/etc/init.d/`, dependency will be ignored if not exists.
+YNIT reads all scripts in `/etc/ynit/`, parse for properties (if exist), and executes them asynchronously. To be compatible with scripts in `/etc/init.d/`, dependency will be ignored if not exists.
 
 It will create separated runner in goroutines for each script. The runner waits for dependencies to finish if there are some, and broadcasts its name to other runners when itself finished.
 
@@ -92,4 +92,4 @@ Since YNIT is mainly build for running in docker container, you will need a runn
 
 ## License
 
-GNU Public License
+GNU General Public License
