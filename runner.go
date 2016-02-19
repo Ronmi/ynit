@@ -65,7 +65,7 @@ func runner(srv *service, arg string, notify chan string) {
 			cmd := exec.Command(script, arg)
 			cmd.Stdout = os.Stderr // redirect to stderr so you can see it in docker logs
 			cmd.Stderr = os.Stderr
-			cmd.Run()
+			_ = cmd.Run()
 			done <- 1
 		}(script, arg)
 

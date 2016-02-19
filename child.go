@@ -86,6 +86,7 @@ func (m *childMgr) adopt() {
 
 // reap a child process
 func (m *childMgr) reap(p *os.Process, pid int) {
+	_, _ = p.Wait()
 	m.monitoring.Set(pid, false)
 	m.Done()
 	d("Child process %d exited", pid)
