@@ -19,12 +19,7 @@ along with YNIT.  If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
-import (
-	"os"
-	"os/exec"
-)
-
-func runner(srv *service, arg string, notify chan string) {
+func runner(srv *service, arg string, notify chan string, m *childMgr) {
 	script := srv.script
 	depOld := srv.startAfter
 	if arg != "start" {
@@ -61,13 +56,10 @@ func runner(srv *service, arg string, notify chan string) {
 		}
 
 		d("Script %s is %sing", srv.script, arg)
-		go func(script, arg string) {
-			cmd := exec.Command(script, arg)
-			cmd.Stdout = os.Stderr // redirect to stderr so you can see it in docker logs
-			cmd.Stderr = os.Stderr
-			_ = cmd.Run()
+		go func(script, arg string, m *childMgr) {
+			m.run(script, arg)
 			done <- 1
-		}(script, arg)
+		}(script, arg, m)
 
 		for range notify {
 		}

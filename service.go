@@ -176,15 +176,15 @@ func (s *services) mergeStop(srv *service) {
 	}
 }
 
-func (s *services) start() {
-	s.run("start")
+func (s *services) start(m *childMgr) {
+	s.run("start", m)
 }
 
-func (s *services) stop() {
-	s.run("stop")
+func (s *services) stop(m *childMgr) {
+	s.run("stop", m)
 }
 
-func (s *services) run(arg string) {
+func (s *services) run(arg string, m *childMgr) {
 	chs := make(map[string]chan string)
 	wait := make(chan int)
 	done := &sync.WaitGroup{}
@@ -194,7 +194,7 @@ func (s *services) run(arg string) {
 		chs[srv.script] = ch
 		go func(chs map[string]chan string, srv *service, ch chan string) {
 			// service starter/stoper
-			runner(srv, arg, ch)
+			runner(srv, arg, ch, m)
 			for range wait {
 			}
 			for _, c := range chs {

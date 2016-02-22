@@ -21,7 +21,9 @@ package main
 
 import (
 	"bufio"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,27 +33,42 @@ import (
 const PROC = "/proc"
 
 type childMgr struct {
-	monitoring *SyncIntMap
+	*sync.Mutex
+	monitoring map[int]bool
 	*sync.WaitGroup
 }
 
 func newMgr() *childMgr {
 	return &childMgr{
-		NewIntMap(),
+		&sync.Mutex{},
+		map[int]bool{},
 		&sync.WaitGroup{},
 	}
 }
 
+// run a command in subprocess without adopting it again
+func (m *childMgr) run(script, arg string) (err error) {
+	cmd := exec.Command(script, arg)
+	cmd.Stdout = os.Stderr // redirect to stderr so you can see it in docker logs
+	cmd.Stderr = os.Stderr
+	m.Lock()
+	cmd.Start()
+	pid := cmd.Process.Pid
+	m.monitoring[pid] = true
+	m.Unlock()
+	err = cmd.Wait()
+	m.Lock()
+	m.monitoring[pid] = false
+	m.Unlock()
+	return
+}
+
 // find out adopted processes
 func (m *childMgr) adopt() {
+	m.Lock()
+	defer m.Unlock()
 	myid := os.Getpid()
-	f, err := os.Open(PROC)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	fis, err := f.Readdir(0)
+	fis, err := ioutil.ReadDir(PROC)
 	if err != nil {
 		return
 	}
@@ -60,34 +77,52 @@ func (m *childMgr) adopt() {
 		if !fi.IsDir() {
 			continue
 		}
-		pid, err := strconv.Atoi(fi.Name())
-		if err != nil || pid <= 1 {
-			// not child process
-			continue
-		}
 
-		if m.monitoring.Has(pid) {
-			// already monitoring
-			continue
-		}
-
-		if m.isChild(myid, fi.Name()) {
-			p, err := os.FindProcess(pid)
-			if err != nil {
-				continue
-			}
-			m.monitoring.Set(pid, true)
-			m.Add(1)
-			go m.reap(p, pid)
-			d("Monitoring child %d", pid)
-		}
+		m.checkNAdopt(myid, fi.Name())
 	}
+}
+
+// check if it is child process, adopt if yes and yet adopted
+func (m *childMgr) checkNAdopt(myid int, name string) {
+	pid, err := strconv.Atoi(name)
+	if err != nil || pid <= 1 {
+		// not child process
+		return
+	}
+
+	if m.monitoring[pid] {
+		// already monitoring
+		return
+	}
+
+	if !m.isChild(myid, name) {
+		// not child process
+		return
+	}
+
+	p, err := os.FindProcess(pid)
+	if err != nil {
+		return
+	}
+
+	m.monitoring[pid] = true
+	m.Add(1)
+	go m.reap(p, pid)
+
+	// fetch cmdline
+	cmd := ""
+	if cmds, err := ioutil.ReadFile(PROC + "/" + name + "/cmdline"); err == nil {
+		cmd = strings.Replace(string(cmds), "\x00", " ", -1)
+	}
+	d("Monitoring child %d %s", pid, cmd)
 }
 
 // reap a child process
 func (m *childMgr) reap(p *os.Process, pid int) {
 	_, _ = p.Wait()
-	m.monitoring.Set(pid, false)
+	m.Lock()
+	m.monitoring[pid] = false
+	m.Unlock()
 	m.Done()
 	d("Child process %d exited", pid)
 }

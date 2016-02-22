@@ -66,7 +66,7 @@ func main() {
 	})
 
 	data.normalize()
-	data.start()
+	data.start(mgr)
 	dp("Service started")
 
 	go func() {
@@ -81,7 +81,7 @@ func main() {
 	signal.Notify(term, unix.SIGTERM, unix.SIGINT)
 
 	<-term
-	data.stop()
+	data.stop(mgr)
 	dp("Service stopped, waiting for child processes")
 	mgr.adopt()
 	mgr.Wait()
