@@ -43,7 +43,6 @@ func runner(srv *service, arg string, notify chan string) {
 		// service runner
 		flags := map[string]bool{}
 		if len(deps) > 0 {
-			d("Script %s is waiting for deps %v", srv.script, deps)
 			for x := range notify {
 				flags[x] = true
 				fulfill := true
@@ -61,6 +60,7 @@ func runner(srv *service, arg string, notify chan string) {
 			}
 		}
 
+		d("Script %s is %sing", srv.script, arg)
 		go func(script, arg string) {
 			cmd := exec.Command(script, arg)
 			cmd.Stdout = os.Stderr // redirect to stderr so you can see it in docker logs

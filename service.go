@@ -203,7 +203,7 @@ func (s *services) run(arg string) {
 				}
 			}
 			done.Done()
-			d("(start|stop)er for %s stopped", srv.script)
+			d("%ser for %s stopped", arg, srv.script)
 		}(chs, srv, ch)
 	}
 	close(wait)
