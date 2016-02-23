@@ -23,62 +23,72 @@ import (
 	"bufio"
 	"os"
 	"strings"
-	"sync"
 )
 
-func setProp(line, prop string, data map[string]bool) {
-	str := strings.TrimSpace(strings.TrimPrefix(line, prop))
-	if str == "" {
-		return
+// State of service
+type State string
+
+// possible states
+const (
+	Error   State = "error" // one (or more) dependencies is in failed state
+	Pending State = "pending"
+	Waiting State = "waiting"
+	Running State = "running"
+	Success State = "success"
+	Failed  State = "failed"
+)
+
+// Property of service
+type Property string
+
+// possible properties
+const (
+	Provides    Property = "# Provides:"
+	StartAfter  Property = "# Required-Start:"
+	StopBefore  Property = "# Required-Stop:"
+	StartBefore Property = "# X-Start-Before:"
+	StopAfter   Property = "# X-Stop-After:"
+)
+
+// all properties
+var (
+	Props = []Property{
+		Provides, // this will always lay on element 0
+		StartAfter,
+		StopBefore,
+		StartBefore,
+		StopAfter,
 	}
-	items := strings.Split(str, " ")
-	for _, item := range items {
-		if item == "" {
-			continue
-		}
-		data[item] = true
-	}
+)
+
+// Service info
+type Service struct {
+	Properties map[Property]map[string]bool
+	Script     string
 }
 
-type service struct {
-	provides    map[string]bool // Provides
-	startAfter  map[string]bool // Required-Start
-	stopBefore  map[string]bool // Required-Stop
-	startBefore map[string]bool // X-Start-Before
-	stopAfter   map[string]bool // X-Stop-After
-	script      string
-}
-
-type services struct {
-	data map[string]*service
-	srvs map[string][]*service
-}
-
-func newServices() *services {
-	return &services{
-		map[string]*service{},
-		map[string][]*service{},
-	}
-}
-
-func (s *services) load(script string) (err error) {
+// NewService creates a Service instance by parsing script
+func NewService(script string) (ret *Service, err error) {
 	f, err := os.Open(script)
 	if err != nil {
 		return
 	}
 	defer f.Close()
 
-	begin := false
-	srv := &service{
-		map[string]bool{},
-		map[string]bool{},
-		map[string]bool{},
-		map[string]bool{},
-		map[string]bool{},
+	props := make(map[Property]map[string]bool)
+	for _, prop := range Props {
+		props[prop] = make(map[string]bool)
+	}
+	props[Provides][script] = true // must provide script itself
+
+	ret = &Service{
+		props,
 		script,
 	}
 
 	scanner := bufio.NewScanner(f)
+	begin := false
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !begin {
@@ -96,120 +106,62 @@ func (s *services) load(script string) (err error) {
 			continue
 		}
 
-		switch {
-		case strings.HasPrefix(line, "# Provides:"):
-			setProp(line, "# Provides:", srv.provides)
-		case strings.HasPrefix(line, "# Required-Start:"):
-			setProp(line, "# Required-Start:", srv.startAfter)
-		case strings.HasPrefix(line, "# Required-Stop:"):
-			setProp(line, "# Required-Stop:", srv.stopBefore)
-		case strings.HasPrefix(line, "# X-Start-Before:"):
-			setProp(line, "# X-Start-Before:", srv.startBefore)
-		case strings.HasPrefix(line, "# X-Stop-After:"):
-			setProp(line, "# X-Stop-After:", srv.stopAfter)
-		}
-
-	}
-
-	if _, ok := s.data[script]; !ok {
-		s.data[script] = srv
-		for p := range srv.provides {
-			if _, ok := s.srvs[p]; !ok {
-				s.srvs[p] = make([]*service, 0, 1)
+		for _, prop := range Props {
+			if strings.HasPrefix(line, string(prop)) {
+				ret.setProp(line, prop)
+				break
 			}
-			s.srvs[p] = append(s.srvs[p], srv)
 		}
 	}
 
-	return scanner.Err()
+	return
 }
 
-// normalize removes non-exist dependencies, and merge startBefore/stopBefore to startAfter/stopAfter
-func (s *services) normalize() {
-	// first loop, remove non-exist deps
-	for _, srv := range s.data {
-		s.filterDeps(srv.provides)
-		s.filterDeps(srv.startAfter)
-		s.filterDeps(srv.stopBefore)
-		s.filterDeps(srv.startBefore)
-		s.filterDeps(srv.stopAfter)
+func (s *Service) setProp(line string, prop Property) {
+	str := strings.TrimSpace(strings.TrimPrefix(line, string(prop)))
+	if str == "" {
+		return
 	}
-
-	// second loop, merge deps
-	for _, srv := range s.data {
-		s.mergeStart(srv)
-		s.mergeStop(srv)
-	}
-}
-
-func (s *services) filterDeps(data map[string]bool) {
-	for srv := range data {
-		if _, ok := s.srvs[srv]; !ok {
-			data[srv] = false
-		}
-	}
-}
-
-func (s *services) mergeStart(srv *service) {
-	for dep, ok := range srv.startBefore {
-		if !ok {
+	items := strings.Split(str, " ")
+	for _, item := range items {
+		if item == "" {
 			continue
 		}
-		for _, dest := range s.srvs[dep] {
-			for provide := range srv.provides {
-				dest.startAfter[provide] = true
+		s.Properties[prop][item] = true
+	}
+}
+
+// Can detects if all dependencies of the Service is fulfilled
+func (s *Service) Can(state map[string]State, prop Property) State {
+	for dep := range s.Properties[prop] {
+		switch state[dep] {
+		case Failed, Error:
+			return Error
+		case Success:
+		default:
+			return Pending
+		}
+	}
+	return Waiting
+}
+
+func (s *Service) removeNonexist(buf map[string][]*Service) {
+	props := Props[1:]
+	for _, prop := range props {
+		for dep := range s.Properties[prop] {
+			if _, ok := buf[dep]; !ok {
+				delete(s.Properties[prop], dep)
 			}
 		}
 	}
 }
 
-func (s *services) mergeStop(srv *service) {
-	for dep, ok := range srv.stopBefore {
-		if !ok {
-			continue
-		}
-		for _, dest := range s.srvs[dep] {
-			for provide := range srv.provides {
-				dest.stopAfter[provide] = true
-			}
+func (s *Service) mergeDepend(buf map[string][]*Service, from, to Property) {
+	for want := range s.Properties[from] {
+		for _, victim := range buf[want] {
+			victim.Properties[to][s.Script] = true
 		}
 	}
-}
 
-func (s *services) start(m *childMgr) {
-	s.run("start", m)
-}
-
-func (s *services) stop(m *childMgr) {
-	s.run("stop", m)
-}
-
-func (s *services) run(arg string, m *childMgr) {
-	chs := make(map[string]chan string)
-	wait := make(chan int)
-	done := &sync.WaitGroup{}
-	for _, srv := range s.data {
-		done.Add(1)
-		ch := make(chan string)
-		chs[srv.script] = ch
-		go func(chs map[string]chan string, srv *service, ch chan string) {
-			// service starter/stoper
-			runner(srv, arg, ch, m)
-			for range wait {
-			}
-			for _, c := range chs {
-				for dep := range srv.provides {
-					c <- dep
-				}
-			}
-			done.Done()
-			d("%ser for %s stopped", arg, srv.script)
-		}(chs, srv, ch)
-	}
-	close(wait)
-	done.Wait()
-
-	for _, ch := range chs {
-		close(ch)
-	}
+	s.Properties[from] = map[string]bool{}
 }

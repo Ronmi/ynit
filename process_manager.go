@@ -24,47 +24,63 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
+
+	"golang.org/x/sys/unix"
 )
 
 // PROC denotes procfs root
 const PROC = "/proc"
 
-type childMgr struct {
+// ProcessManager manages adopted processes
+type ProcessManager struct {
 	*sync.Mutex
 	monitoring map[int]bool
 	*sync.WaitGroup
 }
 
-func newMgr() *childMgr {
-	return &childMgr{
+// NewPM creates new ProcessManager instance
+func NewPM() *ProcessManager {
+	ret := &ProcessManager{
 		&sync.Mutex{},
 		map[int]bool{},
 		&sync.WaitGroup{},
 	}
+
+	go func(p *ProcessManager) {
+		chld := make(chan os.Signal, 1)
+		signal.Notify(chld, unix.SIGCHLD)
+		for range chld {
+			p.Find()
+		}
+	}(ret)
+	return ret
 }
 
-// run a command in subprocess without adopting it again
-func (m *childMgr) run(script, arg string) (err error) {
+// Run a command in subprocess without adopting it again
+func (m *ProcessManager) Run(script, arg string) (err error) {
 	cmd := exec.Command(script, arg)
 	cmd.Stdout = os.Stderr // redirect to stderr so you can see it in docker logs
 	cmd.Stderr = os.Stderr
 	m.Lock()
-	cmd.Start()
+	defer m.Unlock()
+	if err = cmd.Start(); err != nil {
+		return
+	}
 	pid := cmd.Process.Pid
 	m.monitoring[pid] = true
 	m.Unlock()
 	err = cmd.Wait()
 	m.Lock()
 	m.monitoring[pid] = false
-	m.Unlock()
 	return
 }
 
-// find out adopted processes
-func (m *childMgr) adopt() {
+// Find out adopted processes
+func (m *ProcessManager) Find() {
 	m.Lock()
 	defer m.Unlock()
 	myid := os.Getpid()
@@ -78,12 +94,12 @@ func (m *childMgr) adopt() {
 			continue
 		}
 
-		m.checkNAdopt(myid, fi.Name())
+		m.adopt(myid, fi.Name())
 	}
 }
 
 // check if it is child process, adopt if yes and yet adopted
-func (m *childMgr) checkNAdopt(myid int, name string) {
+func (m *ProcessManager) adopt(myid int, name string) {
 	pid, err := strconv.Atoi(name)
 	if err != nil || pid <= 1 {
 		// not child process
@@ -118,7 +134,7 @@ func (m *childMgr) checkNAdopt(myid int, name string) {
 }
 
 // reap a child process
-func (m *childMgr) reap(p *os.Process, pid int) {
+func (m *ProcessManager) reap(p *os.Process, pid int) {
 	_, _ = p.Wait()
 	m.Lock()
 	m.monitoring[pid] = false
@@ -128,7 +144,7 @@ func (m *childMgr) reap(p *os.Process, pid int) {
 }
 
 // isChild parses /proc/*pid*/status to find and compare ppid
-func (m *childMgr) isChild(myid int, pid string) bool {
+func (m *ProcessManager) isChild(myid int, pid string) bool {
 	ppid := strconv.Itoa(myid)
 
 	f, err := os.Open(PROC + "/" + pid + "/status")
