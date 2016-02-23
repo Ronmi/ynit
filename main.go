@@ -67,9 +67,6 @@ func main() {
 
 	<-term
 	stop(services, processes)
-	dp("Service stopped, waiting for child processes")
-	processes.Find()
-	processes.Wait()
 }
 
 func start(services *ServiceManager, processes *ProcessManager) bool {
@@ -77,7 +74,10 @@ func start(services *ServiceManager, processes *ProcessManager) bool {
 	return e.Execute(services)
 }
 
-func stop(services *ServiceManager, processes *ProcessManager) bool {
+func stop(services *ServiceManager, processes *ProcessManager) {
 	e := NewExecutor("stop", StopAfter, processes)
-	return e.Execute(services)
+	e.Execute(services)
+	dp("Service stopped, waiting for child processes")
+	processes.Find()
+	processes.Wait()
 }
