@@ -125,6 +125,6 @@ func (e *Executor) parse() {
 
 	if !haveRunnable {
 		close(e.result)
-		e.done <- haveError
+		e.done <- !haveError
 	}
 }
