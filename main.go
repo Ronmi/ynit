@@ -24,8 +24,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strings"
 
 	"golang.org/x/sys/unix"
 )
@@ -50,30 +48,23 @@ func main() {
 	flag.BoolVar(&debug, "debug", false, "Enable debug output")
 	flag.Parse()
 
-	confdir = strings.TrimSuffix(confdir, "/") + "/"
-	data := newServices()
-	mgr := newMgr()
+	processes := NewPM()
+	services, err := NewServiceManager(confdir)
+	if err != nil {
+		log.Fatalf("Error parsing %s: %s", confdir, err)
+	}
+	services.Normalize()
 
-	filepath.Walk(confdir, func(path string, info os.FileInfo, err error) error {
-		if err == nil {
-			d("Processing %s ...", path)
-			if !info.IsDir() {
-				d("Adding %s ...", path)
-				data.load(path)
-			}
-		}
-		return err
-	})
-
-	data.normalize()
-	data.start(mgr)
-	dp("Service started")
+	if !start(services, processes) {
+		stop(services, processes)
+		return
+	}
 
 	go func() {
 		chld := make(chan os.Signal, 1)
 		signal.Notify(chld, unix.SIGCHLD)
 		for range chld {
-			mgr.adopt()
+			processes.Find()
 		}
 	}()
 
@@ -81,9 +72,18 @@ func main() {
 	signal.Notify(term, unix.SIGTERM, unix.SIGINT)
 
 	<-term
-	data.stop(mgr)
+	stop(services, processes)
 	dp("Service stopped, waiting for child processes")
-	mgr.adopt()
-	mgr.Wait()
+	processes.Find()
+	processes.Wait()
+}
 
+func start(services *ServiceManager, processes *ProcessManager) bool {
+	e := NewExecutor("start", StartAfter, processes)
+	return e.Execute(services)
+}
+
+func stop(services *ServiceManager, processes *ProcessManager) bool {
+	e := NewExecutor("stop", StopAfter, processes)
+	return e.Execute(services)
 }
