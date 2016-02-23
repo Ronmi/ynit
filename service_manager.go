@@ -27,7 +27,8 @@ import (
 
 // ServiceManager manages services
 type ServiceManager struct {
-	services map[string]*Service
+	Services map[string]*Service
+	Deps     []string
 }
 
 // NewServiceManager creates a ServiceManager instance from a directory
@@ -35,6 +36,7 @@ func NewServiceManager(dir string) (ret *ServiceManager, err error) {
 	dir = strings.TrimSuffix(dir, "/") + "/"
 	ret = &ServiceManager{
 		make(map[string]*Service),
+		nil,
 	}
 
 	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -46,7 +48,7 @@ func NewServiceManager(dir string) (ret *ServiceManager, err error) {
 				if err != nil {
 					return err
 				}
-				ret.services[path] = srv
+				ret.Services[path] = srv
 			}
 		}
 		return err
@@ -61,7 +63,7 @@ func (m *ServiceManager) Normalize() {
 	buf := map[string][]*Service{}
 
 	// init buffer
-	for _, srv := range m.services {
+	for _, srv := range m.Services {
 		for dep := range srv.Properties[Provides] {
 			if _, ok := buf[dep]; !ok {
 				buf[dep] = make([]*Service, 0, 1)
@@ -70,13 +72,19 @@ func (m *ServiceManager) Normalize() {
 		}
 	}
 
+	// fill deps
+	m.Deps = make([]string, 0, len(buf))
+	for dep := range buf {
+		m.Deps = append(m.Deps, dep)
+	}
+
 	// remove non-exist deps
-	for _, srv := range m.services {
+	for _, srv := range m.Services {
 		srv.removeNonexist(buf)
 	}
 
 	// merge deps
-	for _, srv := range m.services {
+	for _, srv := range m.Services {
 		srv.mergeDepend(buf, StartBefore, StartAfter)
 		srv.mergeDepend(buf, StopBefore, StopAfter)
 	}

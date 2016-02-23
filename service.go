@@ -30,11 +30,12 @@ type State int
 
 // possible states
 const (
-	Pending State = 0
-	Running State = 1
-	Success State = 2
-	Failed  State = 3
 	Error   State = -1 // one (or more) dependencies is in failed state
+	Pending State = iota
+	Waiting
+	Running
+	Success
+	Failed
 )
 
 // Property of service
@@ -131,13 +132,17 @@ func (s *Service) setProp(line string, prop Property) {
 }
 
 // Can detects if all dependencies of the Service is fulfilled
-func (s *Service) Can(state map[string]State, prop Property) bool {
+func (s *Service) Can(state map[string]State, prop Property) State {
 	for dep := range s.Properties[prop] {
+		if state[dep] == Failed {
+			return Error
+		}
 		if state[dep] != Success {
-			return false
+			return Pending
+
 		}
 	}
-	return true
+	return Waiting
 }
 
 func (s *Service) removeNonexist(buf map[string][]*Service) {
