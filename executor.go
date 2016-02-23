@@ -90,6 +90,18 @@ func (e *Executor) trigger() {
 	for result := range e.result {
 		e.Lock()
 		e.serviceStates[result.Service] = result.Result
+
+		for dep := range result.Service.Properties[Provides] {
+			if result.Result == Success {
+				e.depStates[dep] = Success
+				continue
+			}
+
+			if e.depStates[dep] != Success {
+				e.depStates[dep] = result.Result
+			}
+		}
+
 		if len(e.result) == 0 {
 			e.parse()
 		}
