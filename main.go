@@ -48,26 +48,18 @@ func main() {
 	flag.BoolVar(&debug, "debug", false, "Enable debug output")
 	flag.Parse()
 
-	processes := NewPM()
 	services, err := NewServiceManager(confdir)
 	if err != nil {
 		log.Fatalf("Error parsing %s: %s", confdir, err)
 	}
 	services.Normalize()
+	processes := NewPM()
 
 	if !start(services, processes) {
 		log.Print("Cannot start all services, quitting.")
 		stop(services, processes)
 		log.Fatal("Quitting")
 	}
-
-	go func() {
-		chld := make(chan os.Signal, 1)
-		signal.Notify(chld, unix.SIGCHLD)
-		for range chld {
-			processes.Find()
-		}
-	}()
 	dp("Service started, waiting for child processes")
 
 	term := make(chan os.Signal, 1)

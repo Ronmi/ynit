@@ -24,9 +24,12 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
+
+	"golang.org/x/sys/unix"
 )
 
 // PROC denotes procfs root
@@ -41,11 +44,20 @@ type ProcessManager struct {
 
 // NewPM creates new ProcessManager instance
 func NewPM() *ProcessManager {
-	return &ProcessManager{
+	ret := &ProcessManager{
 		&sync.Mutex{},
 		map[int]bool{},
 		&sync.WaitGroup{},
 	}
+
+	go func(p *ProcessManager) {
+		chld := make(chan os.Signal, 1)
+		signal.Notify(chld, unix.SIGCHLD)
+		for range chld {
+			p.Find()
+		}
+	}(ret)
+	return ret
 }
 
 // Run a command in subprocess without adopting it again
