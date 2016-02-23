@@ -134,12 +134,12 @@ func (s *Service) setProp(line string, prop Property) {
 // Can detects if all dependencies of the Service is fulfilled
 func (s *Service) Can(state map[string]State, prop Property) State {
 	for dep := range s.Properties[prop] {
-		if state[dep] == Failed {
+		switch state[dep] {
+		case Failed, Error:
 			return Error
-		}
-		if state[dep] != Success {
+		case Success:
+		default:
 			return Pending
-
 		}
 	}
 	return Waiting
