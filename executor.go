@@ -54,6 +54,7 @@ func NewExecutor(arg string, prop Property, pm *ProcessManager) *Executor {
 }
 
 func (e *Executor) exec(srv *Service) {
+	d("Executing %s %s ...", srv.Script, e.arg)
 	ret := &ExecuteResult{
 		srv,
 		Success,
@@ -61,6 +62,7 @@ func (e *Executor) exec(srv *Service) {
 	if err := e.pm.Run(srv.Script, e.arg); err != nil {
 		ret.Result = Failed
 	}
+	d("Result of %s %s: %s", srv.Script, e.arg, ret.Result)
 	e.result <- ret
 }
 

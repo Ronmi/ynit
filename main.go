@@ -56,8 +56,9 @@ func main() {
 	services.Normalize()
 
 	if !start(services, processes) {
+		log.Print("Cannot start all services, quitting.")
 		stop(services, processes)
-		return
+		log.Fatal("Quitting")
 	}
 
 	go func() {
@@ -67,6 +68,7 @@ func main() {
 			processes.Find()
 		}
 	}()
+	dp("Service started, waiting for child processes")
 
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, unix.SIGTERM, unix.SIGINT)

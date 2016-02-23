@@ -26,16 +26,16 @@ import (
 )
 
 // State of service
-type State int
+type State string
 
 // possible states
 const (
-	Error   State = -1 // one (or more) dependencies is in failed state
-	Pending State = iota
-	Waiting
-	Running
-	Success
-	Failed
+	Error   State = "error" // one (or more) dependencies is in failed state
+	Pending State = "pending"
+	Waiting State = "waiting"
+	Running State = "running"
+	Success State = "success"
+	Failed  State = "failed"
 )
 
 // Property of service
