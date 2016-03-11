@@ -26,6 +26,7 @@ A typical YNIT script will be like:
 # Required-Stop:
 # X-Start-Before:
 # X-Stop-After:
+# Non-Stop:
 ### END INIT INFO
 
 PIDFILE=/tmp/myprog.pid
@@ -56,6 +57,7 @@ or
 # Required-Stop:
 # X-Start-Before:
 # X-Stop-After:
+# Non-Stop:
 ### END INIT INFO
 */
 
@@ -63,6 +65,26 @@ or
 ```
 
 As you can see, it is almost compatible with the scripts in `/etc/init.d/`. In fact, you can just make a symlink to YNIT directory instead of writing your own script.
+
+## Non-stop jobs
+
+You can also run a program without forking it to background. This can be done easily by setting `Non-Stop` property to `yes` or `true.
+
+```sh
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:       log-redirector
+# Required-Start: service1 service2 and all services
+# Required-Stop:  service1 service2 and all services
+# X-Start-Before:
+# X-Stop-After:
+# Non-Stop:
+### END INIT INFO
+
+tail -f /log/of/service1 /log/of/other/services
+```
+
+This example is an useful trick to forward service logs to docker.
 
 #### WARNING
 - Property lines MUST begin with `# `, no other characters allowed.
@@ -85,9 +107,9 @@ Since YNIT is mainly build for running in docker container, you will need a runn
 
 1. Build ynit binary with `go build`.
 2. Build test image with `docker build -t ynit .`
-3. Run a container with `docker run -d --name ynit-test ynit`
-4. Exec' into the container with `docker exec -it ynit-test bash`, see if ssh, nginx and php-fpm services are all up.
-5. Stop the container with `docker stop ynit-test`
+3. Run a container with `docker run --rm --name ynit`.
+4. Exec' into the container with `docker exec -it ynit ps ax`, see if ssh, nginx and php-fpm services are all up.
+5. Stop the container with `docker stop ynit`
 6. Extract log files from container and examine if they were gracefully exited.
 
 ## License
