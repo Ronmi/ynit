@@ -4,6 +4,6 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ssh nginx-light php5-fpm \
  && mkdir -p /etc/ynit \
  && ln -sf /etc/init.d/nginx /etc/init.d/ssh /etc/init.d/php5-fpm /etc/ynit/
-ADD after.sh before.sh /etc/ynit/
+ADD testscripts /etc/ynit/
 ADD ynit /usr/local/bin/
 CMD ["/usr/local/bin/ynit", "-debug"]

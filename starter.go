@@ -27,9 +27,8 @@ type ExecuteResult struct {
 	Result  State // must be one of Success of Failed
 }
 
-// Executor executes all ynit script
-type Executor struct {
-	arg           string   // arg pass to ynit script
+// Starter executes all ynit script
+type Starter struct {
 	prop          Property // parse deps using this property, must be one of StartAfter or StopAfter
 	pm            *ProcessManager
 	serviceStates map[*Service]State
@@ -39,10 +38,9 @@ type Executor struct {
 	done chan bool
 }
 
-// NewExecutor creates an executor
-func NewExecutor(arg string, prop Property, pm *ProcessManager) *Executor {
-	return &Executor{
-		arg,
+// NewStarter creates an executor
+func NewStarter(prop Property, pm *ProcessManager) *Starter {
+	return &Starter{
 		prop,
 		pm,
 		map[*Service]State{},
@@ -53,21 +51,30 @@ func NewExecutor(arg string, prop Property, pm *ProcessManager) *Executor {
 	}
 }
 
-func (e *Executor) exec(srv *Service) {
-	d("Executing %s %s ...", srv.Script, e.arg)
+func (e *Starter) exec(srv *Service) {
+	d("Starting %s ...", srv.Script)
 	ret := &ExecuteResult{
 		srv,
 		Success,
 	}
-	if err := e.pm.Run(srv.Script, e.arg); err != nil {
-		ret.Result = Failed
+
+	if srv.IsNonStop() {
+		cmd, err := e.pm.Child(srv.Script)
+		srv.Process = cmd.Process
+		if err != nil {
+			ret.Result = Failed
+		}
+	} else {
+		if err := e.pm.Run(srv.Script, "start"); err != nil {
+			ret.Result = Failed
+		}
 	}
-	d("Result of %s %s: %s", srv.Script, e.arg, ret.Result)
+	d("Result of %s start: %s", srv.Script, ret.Result)
 	e.result <- ret
 }
 
 // Execute ynit script
-func (e *Executor) Execute(m *ServiceManager) bool {
+func (e *Starter) Execute(m *ServiceManager) bool {
 	// initialize states
 	e.Lock()
 	for _, srv := range m.Services {
@@ -83,10 +90,11 @@ func (e *Executor) Execute(m *ServiceManager) bool {
 	e.parse()
 	e.Unlock()
 
-	return <-e.done
+	ret := <-e.done
+	return ret
 }
 
-func (e *Executor) trigger() {
+func (e *Starter) trigger() {
 	for result := range e.result {
 		e.Lock()
 		e.serviceStates[result.Service] = result.Result
@@ -109,7 +117,7 @@ func (e *Executor) trigger() {
 	}
 }
 
-func (e *Executor) parse() {
+func (e *Starter) parse() {
 	haveRunnable := false
 	haveError := false
 
@@ -123,7 +131,7 @@ func (e *Executor) parse() {
 		}
 
 		if state == Pending {
-			state = srv.Can(e.depStates, e.prop)
+			state = srv.CanStart(e.depStates, e.prop)
 			e.serviceStates[srv] = state
 		}
 

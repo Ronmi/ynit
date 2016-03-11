@@ -48,12 +48,14 @@ const (
 	StopBefore  Property = "# Required-Stop:"
 	StartBefore Property = "# X-Start-Before:"
 	StopAfter   Property = "# X-Stop-After:"
+	NonStop     Property = "# Non-Stop:"
 )
 
 // all properties
 var (
 	Props = []Property{
 		Provides, // this will always lay on element 0
+		NonStop,  // this will always lay on element 1
 		StartAfter,
 		StopBefore,
 		StartBefore,
@@ -65,6 +67,7 @@ var (
 type Service struct {
 	Properties map[Property]map[string]bool
 	Script     string
+	Process    *os.Process // only valid for non-stop tasks
 }
 
 // NewService creates a Service instance by parsing script
@@ -84,6 +87,7 @@ func NewService(script string) (ret *Service, err error) {
 	ret = &Service{
 		props,
 		script,
+		nil,
 	}
 
 	scanner := bufio.NewScanner(f)
@@ -131,8 +135,19 @@ func (s *Service) setProp(line string, prop Property) {
 	}
 }
 
-// Can detects if all dependencies of the Service is fulfilled
-func (s *Service) Can(state map[string]State, prop Property) State {
+// IsNonStop tests if this service runs in non-stop subprocess (no forking in other words)
+func (s *Service) IsNonStop() bool {
+	for key, ok := range s.Properties[NonStop] {
+		key := strings.ToLower(key)
+		if ok && (key == "true" || key == "yes") {
+			return true
+		}
+	}
+	return false
+}
+
+// CanStart detects if all dependencies of the Service is fulfilled
+func (s *Service) CanStart(state map[string]State, prop Property) State {
 	for dep := range s.Properties[prop] {
 		switch state[dep] {
 		case Failed, Error:
@@ -145,8 +160,21 @@ func (s *Service) Can(state map[string]State, prop Property) State {
 	return Waiting
 }
 
+// CanStop detects if all dependencies of the Service is fulfilled
+func (s *Service) CanStop(state map[string]State, prop Property) State {
+	for dep := range s.Properties[prop] {
+		switch state[dep] {
+		case Failed, Error, Success:
+			continue
+		default:
+			return Pending
+		}
+	}
+	return Waiting
+}
+
 func (s *Service) removeNonexist(buf map[string][]*Service) {
-	props := Props[1:]
+	props := Props[2:]
 	for _, prop := range props {
 		for dep := range s.Properties[prop] {
 			if _, ok := buf[dep]; !ok {

@@ -1,10 +1,11 @@
 #!/bin/bash
 ### BEGIN INIT INFO
-# Provides:       test
+# Provides:       nonstop
 # Required-Start: nginx sshd php5-fpm
 # Required-Stop:  nginx sshd php5-fpm
 # X-Start-Before:
 # X-Stop-After:
+# Non-Stop: true
 ### END INIT INFO
 
-echo "${1}ing test ..."
+tail -F /var/log/nginx/*

@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -60,7 +61,7 @@ func NewPM() *ProcessManager {
 	return ret
 }
 
-// Run a command in subprocess without adopting it again
+// Run a command in subprocess without adopting it again, and wait until it done.
 func (m *ProcessManager) Run(script, arg string) (err error) {
 	cmd := exec.Command(script, arg)
 	cmd.Stdout = os.Stderr // redirect to stderr so you can see it in docker logs
@@ -76,6 +77,28 @@ func (m *ProcessManager) Run(script, arg string) (err error) {
 	err = cmd.Wait()
 	m.Lock()
 	m.monitoring[pid] = false
+	return
+}
+
+// Child runs a command in subprocess without adopting it again.
+// Child will not wait subprocess finish.
+func (m *ProcessManager) Child(script string) (cmd *exec.Cmd, err error) {
+	cmd = exec.Command(script)
+	cmd.Stdout = os.Stderr // redirect to stderr so you can see it in docker logs
+	cmd.Stderr = os.Stderr
+	m.Lock()
+	defer m.Unlock()
+	if err = cmd.Start(); err != nil {
+		return
+	}
+	pid := cmd.Process.Pid
+	m.monitoring[pid] = true
+	go func(cmd *exec.Cmd) {
+		_ = cmd.Wait()
+		m.Lock()
+		defer m.Unlock()
+		m.monitoring[pid] = false
+	}(cmd)
 	return
 }
 
@@ -131,6 +154,23 @@ func (m *ProcessManager) adopt(myid int, name string) {
 		cmd = strings.Replace(string(cmds), "\x00", " ", -1)
 	}
 	d("Monitoring child %d %s", pid, cmd)
+}
+
+// Kill a subprocess
+func (m *ProcessManager) Kill() {
+	m.Lock()
+	defer m.Unlock()
+	for pid, ok := range m.monitoring {
+		if !ok {
+			continue
+		}
+
+		p, err := os.FindProcess(pid)
+		if err != nil {
+			continue
+		}
+		p.Signal(syscall.SIGINT)
+	}
 }
 
 // reap a child process

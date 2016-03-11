@@ -70,14 +70,15 @@ func main() {
 }
 
 func start(services *ServiceManager, processes *ProcessManager) bool {
-	e := NewExecutor("start", StartAfter, processes)
+	e := NewStarter(StartAfter, processes)
 	return e.Execute(services)
 }
 
 func stop(services *ServiceManager, processes *ProcessManager) {
-	e := NewExecutor("stop", StopAfter, processes)
+	e := NewStopper(StopAfter, processes)
 	e.Execute(services)
-	dp("Service stopped, waiting for child processes")
+	dp("Service stopped, sending signal to all childs who skill alive")
 	processes.Find()
+	processes.Kill()
 	processes.Wait()
 }
