@@ -77,7 +77,7 @@ func start(services *ServiceManager, processes *ProcessManager) bool {
 func stop(services *ServiceManager, processes *ProcessManager) {
 	e := NewStopper(StopAfter, processes)
 	e.Execute(services)
-	dp("Service stopped, sending signal to all childs who skill alive")
+	dp("Service stopped, sending signal to all childs who still alive")
 	processes.Find()
 	processes.Kill()
 	processes.Wait()
